@@ -16,7 +16,7 @@ Usage
 from joblib import Parallel, delayed
 
 from mousewolf.models.hmm import fit_hmm
-from mousewolf.paths import DATA_DIR
+from mousewolf.paths import DATA_DIR, RESULTS_DIR
 from mousewolf.io import save_pickle, load_pickle
 
 
@@ -24,7 +24,7 @@ from mousewolf.io import save_pickle, load_pickle
 
 K_VALUES   = [2, 3, 4]   # number of hidden states to try
 MIN_TRIALS = 50           # minimum trials per session to include
-N_JOBS     = 4            # number of parallel CPUs (be considerate on shared servers!)
+N_JOBS     = 9            # number of parallel CPUs (be considerate on shared servers!)
 N_RESTARTS = 10           # number of random restarts per fit
 
 
@@ -78,23 +78,21 @@ if __name__ == "__main__":
     jobs = []
 
     for mouse, df in data.items():
-        for week in sorted(df["week"].unique()):
-            df_filtered = df[(df["week"] == week) & (df["state"] != 5)]
+        df_filtered = df[df["state"] != 5]  # all weeks
+        sequences = [
+            (s["stim"].values, s["lick"].values)
+            for _, s in df_filtered.groupby("session")
+            if len(s) >= MIN_TRIALS
+        ]
 
-            sequences = [
-                (s["stim"].values, s["lick"].values)
-                for _, s in df_filtered.groupby("session")
-                if len(s) >= MIN_TRIALS
-            ]
+        if not sequences:
+            print(f"  Skipping {mouse} — no valid sessions")
+            continue
 
-            if not sequences:
-                print(f"  Skipping {mouse} week {week} — no valid sessions")
-                continue
+        n_trials = sum(len(s[0]) for s in sequences)
 
-            n_trials = sum(len(s[0]) for s in sequences)
-
-            for K in K_VALUES:
-                jobs.append((mouse, week, K, sequences, n_trials))
+        for K in K_VALUES:
+            jobs.append((mouse, None, K, sequences, n_trials))
 
     print(f"\nTotal jobs to run: {len(jobs)} "
           f"({len(data)} mice × weeks × {len(K_VALUES)} K values)\n")
@@ -105,11 +103,11 @@ if __name__ == "__main__":
         for mouse, week, K, sequences, n_trials in jobs
     )
 
-    # ── Collect results into nested dict: results[mouse][week][K] ─────────────
+    # Collect results: results[mouse][K] instead of results[mouse][week][K]
     results = {}
-    for mouse, week, K, result in outputs:
-        results.setdefault(mouse, {}).setdefault(week, {})[K] = result
+    for mouse, _, K, result in outputs:
+        results.setdefault(mouse, {})[K] = result
 
-    # ── Save ───────────────────────────────────────────────────────────────────
-    save_pickle(DATA_DIR, hmm_results=results)
-    print(f"\nSaved: {DATA_DIR / 'hmm_results.pkl'}")
+    save_pickle(RESULTS_DIR, hmm_results_per_mouse=results)
+    print(f"\nSaved: {RESULTS_DIR / 'hmm_results_per_mouse.pkl'}")
+
