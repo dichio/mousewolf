@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"    # ← change this line
+
+[project]
+name = "mousewolf"
+version = "0.1.0"
+description = "HMM analysis of mouse learning behavior"
+authors = [{ name = "Vito Dichio", email = "vito.dichio@psl.ens.eu" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
+    "joblib",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+
+
